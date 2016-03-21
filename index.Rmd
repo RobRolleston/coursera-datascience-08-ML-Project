@@ -1,0 +1,102 @@
+---
+title: "Practical Machine Learning Course Project"
+author: "Rob Rolleston"
+date: "March 21, 2016"
+output: html_document
+---
+
+```{r global_options, include=FALSE}
+#knitr::opts_chunk$set(fig.width=4, fig.height=4)
+library(dplyr)
+library(caret)
+library(rattle)  # fancyRpartPlot
+```
+
+__Background__ : 
+Using devices such as _Jawbone Up_, _Nike FuelBand_, and _Fitbit_ it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how _much_ of a particular activity they do, but they rarely quantify _how well they do it_. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: [http://groupware.les.inf.puc-rio.br/har](http://groupware.les.inf.puc-rio.br/har) (see the section on the Weight Lifting Exercise Data set).
+
+__Data__ :
+The training data for this project are available here:
+[https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv](https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv)
+The test data are available here:
+[https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv](https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv)
+
+__Problem Statement__  
+The goal of your project is to predict the manner in which they did the exercise. This is the "classe" variable in the training set.  
+
+###Data Exploration and Cleaning 
+Preliminary data exploration yielded that fact that there are many missing values.  While reading the CSV files, these are all converted to 'NA'.
+```{r LoadData}
+dataTst <- read.csv("./pml-testing.csv", na.strings = c("NA", "", "#DIV/0!"))
+dataTrn <- read.csv("./pml-training.csv", na.strings = c("NA", "", "#DIV/0!"))
+```
+
+Variables with NA were removed, and several 'meta' values were also removed (e.g. columns 1-7).
+```{r CleanData}
+dataMeta <- c("X", "user_name", "raw_timestamp_part_1", "raw_timestamp_part_2", "cvtd_timestamp", "new_window", "num_window")
+dataTrn.noMeta <- dataTrn %>% select(-one_of(dataMeta))
+dataTst.noMeta <- dataTst %>% select(-one_of(dataMeta))
+remove(dataMeta)
+
+dataTrn.noMeta.NoNA <- dataTrn.noMeta[,colSums(is.na(dataTrn.noMeta)) == 0]
+dataTst.noMeta.NoNA <- dataTst.noMeta[,colSums(is.na(dataTst.noMeta)) == 0]
+```
+
+### Prediciton Models
+The 'classe' variable takes on one of five values: 'A', 'B', 'C', 'D', 'E', where 'A' is correct, and the others are intentionally incorrect movements;  this points to the use of a classification tree as opposed to any type of regression model.  The training data was further split into sets for training and validation.
+
+```{r PartitionData}
+set.seed(1958) 
+inTrain <- createDataPartition(dataTrn.noMeta.NoNA$classe, p = 0.7, list = FALSE)
+dataTrn.train <- dataTrn.noMeta.NoNA[inTrain, ]
+dataTrn.valid <- dataTrn.noMeta.NoNA[-inTrain, ]
+remove(inTrain)
+```
+
+
+#### Classification Tree
+```{r ClassifcationTree, message=FALSE}
+control <- trainControl(method = "cv", number = 5)
+fit_rpart <- train(classe ~ ., data = dataTrn.train, method = "rpart", trControl = control)
+print(fit_rpart, digits = 3)
+fancyRpartPlot(fit_rpart$finalModel, sub="method=rpart")
+```
+
+Predict outcomes using validation set.
+```{r TreePrediction}
+predict_rpart <- predict(fit_rpart, dataTrn.valid)
+conf_rpart <- confusionMatrix(dataTrn.valid$classe, predict_rpart)
+accuracy_rpart <- conf_rpart$overall["Accuracy"]
+#conf_rpart
+#accuracy_rpart
+```
+The confusion matrix yields and accuracy of `r accuracy_rpart`, which is not very good.  Time to try a different model.
+
+#### Random Forest
+```{r randomForest, message=FALSE, warning=FALSE}
+fit_rf <- train(classe ~ ., data = dataTrn.train, method = "rf", trControl = control)
+print(fit_rf, digits = 3)
+plot(varImp(fit_rf), top=10)
+```
+
+Predict outcomes using validation set.
+```{r randomForestPrediction}
+# predict outcomes using validation set
+predict_rf <- predict(fit_rf, dataTrn.valid)
+# Show prediction result
+conf_rf <- confusionMatrix(dataTrn.valid$classe, predict_rf)
+accuracy_rf <- conf_rf$overall["Accuracy"]
+#conf_rf
+#accuracy_rf
+```
+The confusion matrix yields and accuracy of `r accuracy_rf`, which is very good
+
+In both the tree and random forest, the top two predictors are 'roll\_belt', 'pitch\_forearm'.
+
+### Prediction on Testing Set
+```{r TestingData}
+dataTst.noMeta.NoNA.predict <- predict(fit_rf, dataTst.noMeta.NoNA)
+dataTst.noMeta.NoNA.predict
+```
+
+
