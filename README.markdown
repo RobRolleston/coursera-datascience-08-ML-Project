@@ -2,7 +2,6 @@
 ### Rob Rolleston
 ### 2016-March-21
 
-http://robrolleston.github.io/coursera-datascience-08-ML-Project/ 
 The report can be viewed at [gh-pages](http://robrolleston.github.io/coursera-datascience-08-ML-Project/) 
 
 Original assignment is at [Coursera: Practical Machine Learning](https://www.coursera.org/learn/practical-machine-learning/peer/R43St/prediction-assignment-writeup)
